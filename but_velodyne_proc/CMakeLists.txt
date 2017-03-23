@@ -13,6 +13,7 @@ find_package(catkin
   velodyne_pointcloud
   costmap_2d
   roslint
+  cmake_modules
 )
 
 find_package(PkgConfig REQUIRED)
