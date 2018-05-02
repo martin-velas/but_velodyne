@@ -43,14 +43,8 @@ link_directories(${ButVELODYNE_LIBRARY_DIRS})
 catkin_package(CATKIN_DEPENDS nav_msgs sensor_msgs tf2_eigen)
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-add_executable(imu_odom src/imu_odom_node.cpp)
-target_link_libraries(imu_odom ${catkin_LIBRARIES} ${PCL_LIBRARIES})
-
 add_executable(velodyne_imu_bag_parser src/velodyne_imu_bag_parser.cpp)
 target_link_libraries(velodyne_imu_bag_parser ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${ButVELODYNE_LIBRARIES})
-
-add_executable(velodyne_imu_bag_multi_parser src/velodyne_imu_bag_multi_parser.cpp)
-target_link_libraries(velodyne_imu_bag_multi_parser ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${ButVELODYNE_LIBRARIES})
 
 find_package(Qt5Positioning)
 

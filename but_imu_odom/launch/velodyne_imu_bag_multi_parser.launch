@@ -3,10 +3,20 @@
 <launch>
 
   <arg name="out_dir"/>
-  <node pkg="but_imu_odom" type="velodyne_imu_bag_multi_parser" name="velodyne_imu_bag_parser" output="screen">
+  <node pkg="but_imu_odom" type="velodyne_imu_bag_parser" name="velodyne_imu_bag_parser_1" output="screen">
     <param name="out_dir" value="$(arg out_dir)" />
+    <param name="topic_name" value="/velodyne_points" />
+    <param name="frame_id" value="velodyne" />
+    <param name="sensor_id" value="1" />
   </node>
-  
+
+  <node pkg="but_imu_odom" type="velodyne_imu_bag_parser" name="velodyne_imu_bag_parser_2" output="screen">
+    <param name="out_dir" value="$(arg out_dir)" />
+    <param name="topic_name" value="/velodyne2/velodyne_points" />
+    <param name="frame_id" value="velodyne2" />
+    <param name="sensor_id" value="2" />
+  </node>
+
   <arg name="bag_file"/>
   <node pkg="rosbag" type="play" name="player" args="$(arg bag_file)" required="true"/>
 

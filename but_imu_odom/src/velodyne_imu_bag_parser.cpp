@@ -50,41 +50,55 @@ const string NODE_NAME = "velodyne_imu_bag_parser";
 class Parser {
 private:
   int cloud_counter;
-  bool is_first;
   tf::TransformListener tf_listener;
-  StampedTransform first_transform;
-  ofstream out_poses;
+  ofstream out_poses, out_times;
+  static const int MIN_REQ_POINTS = 1000;
 
 public:
   string out_dir, frame_id;
+  int sensor_id;
 
-  Parser(const string &frame_id_, const string &out_dir_) :
+  Parser(const string &frame_id_, const int sensor_id_, const string &out_dir_) :
     frame_id(frame_id_),
     out_dir(out_dir_),
-    cloud_counter(0),
-    is_first(true),
-    out_poses((out_dir_ + "/poses.txt").c_str(), ios_base::out) {
+    sensor_id(sensor_id_),
+    cloud_counter(0) {
+    stringstream out_poses_fn, out_times_fn;
+    out_poses_fn << out_dir_ + "/poses." << sensor_id << ".txt";
+    out_times_fn << out_dir_ + "/times." << sensor_id << ".txt";
+    out_poses.open(out_poses_fn.str().c_str());
+    out_times.open(out_times_fn.str().c_str());
+  }
+
+  void findSaveTransform(void) {
+    tf::StampedTransform transform;
+    tf_listener.waitForTransform("imu_base_aligned", "velodyne_base", ros::Time(0), ros::Duration(0.01));
+    tf_listener.lookupTransform("imu_base_aligned", "velodyne_base", ros::Time(0), transform);
+    Eigen::Affine3d t;
+    tf::transformTFToEigen(transform, t);
+    KittiUtils::save_kitti_pose(Eigen::Affine3f(t.cast<float>().matrix()), out_poses);
+  }
+
+  void saveCloud(const VelodynePointCloud &cloud, const ros::Time &time) {
+    stringstream filename;
+    filename << out_dir << "/" << KittiUtils::getKittiFrameName(cloud_counter, ".") << sensor_id << ".pcd";
+    ROS_INFO_STREAM("Saving " << filename.str() << " taken at " << time);
+    io::savePCDFileBinary(filename.str(), cloud);
   }
 
   void callback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     VelodynePointCloud cloud;
     fromROSMsg(*msg, cloud);
-    cloud.setImageLikeAxisFromKitti();
-    string filename = out_dir + "/" + KittiUtils::getKittiFrameName(cloud_counter++, ".pcd");
-    ROS_INFO_STREAM("Saving " << filename);
-    io::savePCDFileBinary(filename, cloud);
+    cloud.removeNanPoints();
 
-    tf::StampedTransform transform;
-    tf_listener.waitForTransform(frame_id, "imu_base", ros::Time(0), ros::Duration(0.01));
-    tf_listener.lookupTransform(frame_id, "imu_base", ros::Time(0), transform);
-    if(is_first) {
-      first_transform = transform;
-      is_first = false;
+    if(cloud.size() > MIN_REQ_POINTS) {
+      cloud.setImageLikeAxisFromKitti();
+      saveCloud(cloud, msg->header.stamp);
+      out_times << cloud_counter << " " << fixed << cloud.header.stamp << endl;
+      cloud_counter++;
+
+      findSaveTransform();
     }
-    Eigen::Affine3d t;
-    tf::transformTFToEigen(first_transform.inverse()*transform, t);
-    Eigen::Matrix4f t_float = cloud.getAxisCorrection() * t.cast<float>().matrix() * cloud.getAxisCorrection().inverse();
-    KittiUtils::save_kitti_pose(Eigen::Affine3f(t_float), out_poses);
   }
 };
 
@@ -94,13 +108,18 @@ int main(int argc, char** argv) {
 
   string out_dir(".");
   nh.getParam("out_dir", out_dir);
+
   string topic("/velodyne_points");
   nh.getParam("topic_name", topic);
+
   string frame_id("velodyne");
   nh.getParam("frame_id", frame_id);
 
-  Parser parser(frame_id, out_dir);
-  ros::Subscriber pcd_sub = nh.subscribe<sensor_msgs::PointCloud2>(topic, 10, &Parser::callback, &parser);
+  int sensor_id;
+  nh.getParam("sensor_id", sensor_id);
+
+  Parser parser(frame_id, sensor_id, out_dir);
+  ros::Subscriber pcd_sub = nh.subscribe<sensor_msgs::PointCloud2>(topic, 256, &Parser::callback, &parser);
   spin();
 
   return EXIT_SUCCESS;

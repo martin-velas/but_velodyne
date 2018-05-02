@@ -49,6 +49,7 @@
 
 #include <but_velodyne/VelodynePointCloud.h>
 #include <but_velodyne/KittiUtils.h>
+#include <but_velodyne/Visualizer3D.h>
 
 // install package: qtpositioning5-dev
 #include <qt5/QtPositioning/QGeoCoordinate>
@@ -62,17 +63,23 @@ using namespace but_velodyne;
 const string NODE_NAME = "imu_gps_odom_node";
 
 class Parser {
+
 private:
   QGeoCoordinate first_coord;
   bool first_coord_set;
   ros::Publisher pose_pub;
+
 public:
+  Visualizer3D visualizer;
+
   Parser(NodeHandle &nh) :
     first_coord_set(false),
     pose_pub(nh.advertise<geometry_msgs::PoseStamped>("imu_gps_pose", 10)){
   }
 
-  void callback(const sensor_msgs::NavSatFixConstPtr& gps_msg, const geometry_msgs::PoseStampedConstPtr& orient_msg) {
+  void callback(const sensor_msgs::NavSatFixConstPtr& gps_msg,
+      const geometry_msgs::Vector3StampedConstPtr& gps_error,
+      const geometry_msgs::PoseStampedConstPtr& orient_msg) {
     int precision = std::numeric_limits<double>::digits10;
 
     QGeoCoordinate coord(gps_msg->latitude, gps_msg->longitude, gps_msg->altitude);
@@ -90,7 +97,12 @@ public:
 
     Eigen::Affine3d affine_tf;
     tf2::fromMsg(pose.pose, affine_tf);
-    KittiUtils::printPose(cout, affine_tf.matrix().cast<float>());
+    cout << gps_msg->header.stamp << " " << gps_error->vector.x << " " << gps_error->vector.y << " " << gps_error->vector.z << " ";
+    Eigen::Affine3f affine_tf_float = affine_tf.cast<float>();
+    KittiUtils::printPose(cout, affine_tf_float.matrix());
+
+    visualizer.getViewer()->addCoordinateSystem(0.5, affine_tf_float);
+    visualizer.showOnce(10);
 
     pose_pub.publish(pose);
   }
@@ -101,15 +113,21 @@ int main(int argc, char** argv) {
   NodeHandle nh("~");
 
   message_filters::Subscriber<sensor_msgs::NavSatFix> sub1(nh, "/imu_nav", 10);
-  message_filters::Subscriber<geometry_msgs::PoseStamped> sub2(nh, "/imu_pose", 10);
+  message_filters::Subscriber<geometry_msgs::Vector3Stamped> sub2(nh, "/imu_nav_errors", 10);
+  message_filters::Subscriber<geometry_msgs::PoseStamped> sub3(nh, "/imu_pose", 10);
 
   Parser parser(nh);
 
-  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::NavSatFix, geometry_msgs::PoseStamped> MySyncPolicy;
-  message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub1, sub2);
-  sync.registerCallback(boost::bind(&Parser::callback, &parser, _1, _2));
+  typedef message_filters::sync_policies::ApproximateTime<
+      sensor_msgs::NavSatFix,
+      geometry_msgs::Vector3Stamped,
+      geometry_msgs::PoseStamped> MySyncPolicy;
+  message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub1, sub2, sub3);
+  sync.registerCallback(boost::bind(&Parser::callback, &parser, _1, _2, _3));
 
   spin();
+
+  parser.visualizer.show();
 
   return EXIT_SUCCESS;
 }
