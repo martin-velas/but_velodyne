@@ -70,15 +70,6 @@ public:
     out_times.open(out_times_fn.str().c_str());
   }
 
-  void findSaveTransform(void) {
-    tf::StampedTransform transform;
-    tf_listener.waitForTransform("imu_base_aligned", "velodyne_base", ros::Time(0), ros::Duration(0.01));
-    tf_listener.lookupTransform("imu_base_aligned", "velodyne_base", ros::Time(0), transform);
-    Eigen::Affine3d t;
-    tf::transformTFToEigen(transform, t);
-    KittiUtils::save_kitti_pose(Eigen::Affine3f(t.cast<float>().matrix()), out_poses);
-  }
-
   void saveCloud(const VelodynePointCloud &cloud, const ros::Time &time) {
     stringstream filename;
     filename << out_dir << "/" << KittiUtils::getKittiFrameName(cloud_counter, ".") << sensor_id << ".pcd";
@@ -96,8 +87,6 @@ public:
       saveCloud(cloud, msg->header.stamp);
       out_times << cloud_counter << " " << fixed << cloud.header.stamp << endl;
       cloud_counter++;
-
-      findSaveTransform();
     }
   }
 };

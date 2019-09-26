@@ -45,8 +45,3 @@ include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(velodyne_imu_bag_parser src/velodyne_imu_bag_parser.cpp)
 target_link_libraries(velodyne_imu_bag_parser ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${ButVELODYNE_LIBRARIES})
-
-find_package(Qt5Positioning)
-
-add_executable(imu_gps_odom_node src/imu_gps_odom_node.cpp)
-target_link_libraries(imu_gps_odom_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${ButVELODYNE_LIBRARIES} Qt5::Positioning)
