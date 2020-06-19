@@ -77,10 +77,18 @@ public:
     io::savePCDFileBinary(filename.str(), cloud);
   }
 
+  void removeNanPoints(const VelodynePointCloud &input, VelodynePointCloud &output) {
+    for(VelodynePointCloud::const_iterator pt = input.begin(); pt < input.end(); pt++) {
+      if(isFinite(*pt)) {
+        output.push_back(*pt);
+      }
+    }
+  }
+
   void callback(const sensor_msgs::PointCloud2ConstPtr& msg) {
-    VelodynePointCloud cloud;
-    fromROSMsg(*msg, cloud);
-    cloud.removeNanPoints();
+    VelodynePointCloud raw_cloud, cloud;
+    fromROSMsg(*msg, raw_cloud);
+    removeNanPoints(raw_cloud, cloud);
 
     if(cloud.size() > MIN_REQ_POINTS) {
       cloud.setImageLikeAxisFromKitti();
